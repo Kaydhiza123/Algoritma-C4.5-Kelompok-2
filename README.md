@@ -1,5 +1,7 @@
 # 🎓 Dashboard Prediksi Kelulusan C4.5 S1 Matematika UNAIR
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://algoritma-c45-kelompok-2-proyekdatamining.streamlit.app/)
+
 Aplikasi web interaktif berbasis **Streamlit** untuk memprediksi kelulusan tepat waktu mahasiswa S1 Matematika Universitas Airlangga menggunakan algoritma pohon keputusan **C4.5 (Decision Tree dengan kriteria Entropy/Information Gain)**.
 
 ---
