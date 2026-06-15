@@ -121,24 +121,204 @@ def kategorisasi_data(df):
             return np.nan
 
     df_kat['Semester'] = df_kat.apply(hitung_semester, axis=1)
-
-    def klasifikasi_status(row):
-        lama_studi = float(row['Lama Studi'])
-        try:
-            bulan_yudisium = pd.to_datetime(row['Tanggal Yudisium']).month
-        except:
-            bulan_yudisium = 6
-        if lama_studi > 4.00:
-            if lama_studi < 4.50:
-                return 'Tidak Lulus Tepat Waktu' if bulan_yudisium > 6 else 'Lulus Tepat Waktu'
-            else:
-                return 'Tidak Lulus Tepat Waktu'
-        else:
-            return 'Lulus Tepat Waktu'
-
-    df_kat['Status'] = df_kat.apply(klasifikasi_status, axis=1)
     return df_kat
 
+# ==========================================================
+# FUNGSI PERHITUNGAN MATEMATIKA C4.5 SECARA MANUAL
+# ==========================================================
+
+# 1. Hitung Entropi suatu himpunan target (y)
+def hitung_entropi_manual(y_label):
+    counts = pd.Series(y_label).value_counts()
+    total = len(y_label)
+    if total == 0:
+        return 0
+    entropi = 0
+    for count in counts:
+        p = count / total
+        entropi -= p * np.log2(p)
+    return entropi
+
+# 2. Cari Split Point (titik potong) terbaik untuk atribut kontinu/numerik
+def cari_split_terbaik(X_col, y_curr):
+    total_data = len(y_curr)
+    entropi_total = hitung_entropi_manual(y_curr)
+    
+    values = X_col.dropna().unique()
+    values.sort()
+    
+    best_gain_ratio = -1
+    best_threshold = None
+    best_gain = 0
+    
+    # Cek setiap kemungkinan titik tengah (midpoint) sebagai threshold
+    for i in range(len(values) - 1):
+        threshold = (values[i] + values[i+1]) / 2
+        
+        left_mask = X_col <= threshold
+        right_mask = X_col > threshold
+        
+        y_left = y_curr[left_mask]
+        y_right = y_curr[right_mask]
+        
+        if len(y_left) == 0 or len(y_right) == 0:
+            continue
+            
+        entropi_left = hitung_entropi_manual(y_left)
+        entropi_right = hitung_entropi_manual(y_right)
+        
+        # Hitung Information Gain
+        gain = entropi_total - (
+            (len(y_left) / total_data) * entropi_left + 
+            (len(y_right) / total_data) * entropi_right
+        )
+        
+        # Hitung Split Information (untuk melengkapi C4.5 Gain Ratio)
+        p_left = len(y_left) / total_data
+        p_right = len(y_right) / total_data
+        split_info = - (p_left * np.log2(p_left) + p_right * np.log2(p_right))
+        
+        gain_ratio = gain / split_info if split_info > 0 else 0
+        
+        if gain_ratio > best_gain_ratio:
+            best_gain_ratio = gain_ratio
+            best_threshold = threshold
+            best_gain = gain
+            
+    return best_gain_ratio, best_threshold, best_gain
+
+# 3. Fungsi Rekursif untuk Membangun Pohon & Menyimpan Langkah Hitungannya ke Tabel
+def bangun_pohon_manual(X_curr, y_curr, list_tabel_iterasi, info_node="Root"):
+    # Jika data sudah homogen (isinya cuma 1 kelas status)
+    if len(y_curr.unique()) <= 1:
+        return {"n_samples": len(y_curr), "prediksi": y_curr.iloc[0] if len(y_curr) > 0 else "Tidak Diketahui"}
+        
+    # Jika atribut habis
+    if X_curr.shape[1] == 0:
+        return {"n_samples": len(y_curr), "prediksi": y_curr.mode()[0]}
+        
+    entropi_node = hitung_entropi_manual(y_curr)
+    
+    catatan_atribut = []
+    best_attr = None
+    best_thresh = None
+    max_gr = -1
+    
+    # Hitung semua atribut untuk kompetisi di node ini
+    for col in X_curr.columns:
+        gr, thresh, gain = cari_split_terbaik(X_curr[col], y_curr)
+        catatan_atribut.append({
+            "Node/Iterasi": info_node,
+            "Atribut": col,
+            "Threshold": f"<= {thresh:.3f}" if thresh else "-",
+            "Information Gain": round(gain, 4),
+            "Gain Ratio (C4.5)": round(gr, 4)
+        })
+        
+        if gr > max_gr and thresh is not None:
+            max_gr = gr
+            best_attr = col
+            best_thresh = thresh
+            
+    # Simpan hasil kompetisi atribut ke list global untuk ditampilkan di Streamlit nanti
+    if catatan_atribut:
+        list_tabel_iterasi.append(pd.DataFrame(catatan_atribut))
+        
+    if best_attr is None:
+        return {"n_samples": len(y_curr), "prediksi": y_curr.mode()[0]}
+        
+    # Split data secara riil untuk cabang berikutnya
+    mask_kiri = X_curr[best_attr] <= best_thresh
+    mask_kanan = X_curr[best_attr] > best_thresh
+    
+    # Buat cabang anak (Child Node)
+    cabang_kiri = bangun_pohon_manual(X_curr[mask_kiri], y_curr[mask_kiri], list_tabel_iterasi, f"Cabang: {best_attr} <= {best_thresh:.2f}")
+    cabang_kanan = bangun_pohon_manual(X_curr[mask_kanan], y_curr[mask_kanan], list_tabel_iterasi, f"Cabang: {best_attr} > {best_thresh:.2f}")
+    
+    return {
+        "atribut": best_attr,
+        "threshold": best_thresh,
+        "n_samples": len(y_curr),
+        "entropi": round(entropi_node, 4),
+        "kiri": cabang_kiri,
+        "kanan": cabang_kanan
+    }
+
+# Fungsi untuk menelusuri hasil input mahasiswa baru ke dalam pohon manual
+def prediksi_pohon_manual(pohon, row_input):
+    if "prediksi" in pohon:
+        return pohon["prediksi"]
+        
+    attr = pohon["atribut"]
+    thresh = pohon["threshold"]
+    
+    if row_input[attr].iloc[0] <= thresh:
+        return prediksi_pohon_manual(pohon["kiri"], row_input)
+    else:
+        return prediksi_pohon_manual(pohon["kanan"], row_input)
+
+# ==========================================================
+# FUNGSI EVALUASI PERFORMA POHON MANUAL (CONFUSION MATRIX)
+# ==========================================================
+def evaluasi_pohon_manual(pohon, X_test, y_test):
+    y_pred_manual = []
+    
+    # Lakukan prediksi baris demi baris pada data uji
+    for idx in range(len(X_test)):
+        row_input = X_test.iloc[[idx]]
+        prediksi = prediksi_pohon_manual(pohon, row_input)
+        y_pred_manual.append(prediksi)
+        
+    y_pred_manual = np.array(y_pred_manual)
+    y_true = np.array(y_test)
+    
+    # Hitung nilai akurasi manual
+    benar = np.sum(y_pred_manual == y_true)
+    total = len(y_true)
+    akurasi = benar / total if total > 0 else 0
+    
+    return akurasi, y_true, y_pred_manual
+
+# ==========================================================
+# FUNGSI UNTUK MENGGAMBAR GRAPH POHON MANUAL
+# ==========================================================
+def generate_graphviz_pohon(pohon, dot=None, parent_id=None, edge_label=""):
+    import graphviz
+    
+    if dot is None:
+        dot = graphviz.Digraph(comment='Pohon Keputusan C4.5 Manual')
+        dot.attr(rankdir='TB', size='10,10')
+        # Atur style visual node agar rapi dan profesional
+        dot.attr('node', shape='box', style='filled,rounded', color='black', fontname='Arial', fontsize='11')
+        dot.attr('edge', fontname='Arial', fontsize='10', color='gray')
+        
+    # Ambil ID unik untuk node saat ini menggunakan hash memori objek
+    current_id = str(id(pohon))
+    
+    # Jika node adalah Daun/Leaf (Hasil keputusan akhir)
+    if "prediksi" in pohon:
+        label_daun = f"STATUS:\n{pohon['prediksi']}\n(Samples: {pohon['n_samples']})"
+        # Warnai hijau jika Lulus Tepat Waktu, oranye jika Tidak Lulus Tepat Waktu
+        warna = '#C2EABD' if pohon['prediksi'] == 'Lulus Tepat Waktu' else '#FFD3B6'
+        dot.node(current_id, label_daun, fillcolor=warna, shape='ellipse', style='filled')
+    else:
+        # Jika node adalah cabang/kondisi atribut
+        label_cabang = f"Apakah {pohon['atribut']}?\n(Samples: {pohon['n_samples']}\nEntropi: {pohon['entropi']})"
+        dot.node(current_id, label_cabang, fillcolor='#E3F2FD')
+        
+    # Hubungkan ke node di atasnya (parent node) jika ada
+    if parent_id is not None:
+        dot.edge(parent_id, current_id, label=edge_label)
+        
+    # Rekursif ke cabang anak kiri dan kanan jika bukan leaf node
+    if "prediksi" not in pohon:
+        # Cabang Kiri (Memenuhi kondisi <= threshold)
+        generate_graphviz_pohon(pohon["kiri"], dot, current_id, f"<= {pohon['threshold']:.2f}")
+        # Cabang Kanan (Lebih besar dari > threshold)
+        generate_graphviz_pohon(pohon["kanan"], dot, current_id, f"> {pohon['threshold']:.2f}")
+        
+    return dot
+    
 # ==========================================
 # 4. ANTARMUKA DASHBOARD
 # ==========================================
@@ -188,19 +368,18 @@ if uploaded_file is not None:
 
     # STEP 3: KATEGORISASI
     df_processed = kategorisasi_data(df_clean)
-
+    
     st.subheader("✨ Hasil Kategorisasi Fitur")
-    kat_cols = ['Jenis Kelamin', 'IPK', 'SKS', 'SKP', 'Lama Studi', 'Tanggal Yudisium', 'Semester', 'Status']
+    kat_cols = ['Jenis Kelamin', 'IPK', 'SKS', 'SKP', 'Lama Studi', 'Tanggal Yudisium', 'Semester', 'STATUS']
     kat_cols_ada = [c for c in kat_cols if c in df_processed.columns]
     st.dataframe(df_processed[kat_cols_ada].head(10))
 
     st.write("**Distribusi Target (Status Kelulusan):**")
-    st.dataframe(df_processed['Status'].value_counts().rename_axis('Status').reset_index(name='Jumlah'))
+    st.dataframe(df_processed['STATUS'].value_counts().rename_axis('Status').reset_index(name='Jumlah'))
 
     # STEP 4: MODELING C4.5
     # Fitur: IPK (numerik), SKS, SKP (numerik), Lama Studi, Tanggal Yudisium, Semester
     feature_cols = ['IPK', 'SKS', 'SKP', 'Lama Studi', 'Tanggal Yudisium', 'Semester']
-
     df_model = df_processed.copy()
 
     # Konversi Tanggal Yudisium ke nilai numerik (ordinal)
@@ -209,7 +388,83 @@ if uploaded_file is not None:
     )
 
     X = df_model[feature_cols].copy()
-    y = df_model['Status'].copy()
+    y = df_model['STATUS'].copy()
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+    
+    # Wadah untuk menampung tabel-tabel iterasi manual
+    st.session_state.list_tabel_iterasi = []
+
+    # Jalankan perhitungan pohon manual
+    pohon_keputusan_manual = bangun_pohon_manual(X, y, st.session_state.list_tabel_iterasi, "Root Node (Awal)")
+    st.session_state.pohon_manual = pohon_keputusan_manual  # Simpan hasil struktur pohonnya
+
+    # 📊 TAMPILKAN LANGKAH PERHITUNGAN MANUAL DI DASHBOARD
+    st.write("---")
+    st.header("🧮 Proses Perhitungan Manual Algoritma C4.5")
+    st.write("Berikut merupakan hasil iterasi perhitungan *Gain Ratio* untuk setiap atribut di setiap percabangan:")
+
+    for idx, df_iterasi in enumerate(st.session_state.list_tabel_iterasi):
+        node_name = df_iterasi["Node/Iterasi"].iloc[0]
+        st.subheader(f"📍 Langkah {idx + 1}: Perhitungan pada {node_name}")
+        
+        # Cari pemenang di iterasi ini
+        df_sorted = df_iterasi.sort_values(by="Gain Ratio (C4.5)", ascending=False).reset_index(drop=True)
+        st.dataframe(df_sorted)
+        
+        pemenang = df_sorted.iloc[0]
+        st.info(f"🏆 Atribut **{pemenang['Atribut']}** dipilih sebagai node karena memiliki nilai **Gain Ratio tertinggi ({pemenang['Gain Ratio (C4.5)']})** dengan batasan/threshold `{pemenang['Threshold']}`.")
+   
+    # ==============================================================
+    # 🌳 VISUALISASI POHON KEPUTUSAN DARI HASIL HITUNGAN MANUAL
+    # ==============================================================
+    st.write("---")
+    st.header("🌳 Visualisasi Pohon Keputusan C4.5 (Versi Manual)")
+    st.write("Grafik di bawah ini digenerate secara dinamis murni mengikuti alur percabangan matematika manual di atas:")
+    
+    try:
+        # Panggil fungsi generator graphviz menggunakan pohon manual kita
+        grafik_pohon = generate_graphviz_pohon(st.session_state.pohon_manual)
+        
+        # Tampilkan grafik ke dashboard Streamlit
+        st.graphviz_chart(grafik_pohon)
+        
+    except Exception as e:
+        st.error(f"Gagal memvisualisasikan pohon manual. Pastikan library graphviz sudah terinstal. Error: {e}")
+    
+    # ==============================================================
+    # 📊 PERFORMA MODEL & CONFUSION MATRIX
+    # ==============================================================
+    st.write("---")
+    st.header("📊 Performa Model & Confusion Matrix (Versi Manual)")
+    
+    # Jalankan fungsi evaluasi menggunakan data uji (X_test dan y_test)
+    acc_manual, y_true, y_pred = evaluasi_pohon_manual(st.session_state.pohon_manual, X_test, y_test)
+    
+    col_perf1, col_perf2 = st.columns(2)
+    with col_perf1:
+        st.metric(label="🎯 Akurasi Model Manual (Data Uji 20%)", value=f"{acc_manual * 100:.2f} %")
+        st.write(f"Detail: **{np.sum(y_pred == y_true)}** prediksi benar dari **{len(y_true)}** total data uji.")
+    
+    with col_perf2:
+        st.write("**Confusion Matrix (Prediksi vs Aktual):**")
+        
+        # Membuat DataFrame Confusion Matrix secara manual menggunakan pd.crosstab
+        df_eval = pd.DataFrame({
+            'Status Aktual (Asli)': y_true,
+            'Hasil Prediksi Model': y_pred
+        })
+        
+        # crosstab ini berfungsi sama persis dengan confusion matrix, namun berbasis teks tabel pandas
+        confusion_matrix_manual = pd.crosstab(
+            df_eval['Status Aktual (Asli)'], 
+            df_eval['Hasil Prediksi Model'], 
+            margins=True, # Menambahkan baris/kolom 'All' untuk total data
+            margins_name="Total"
+        )
+        st.dataframe(confusion_matrix_manual, use_container_width=True)
 
     # Encode target
     le_target = LabelEncoder()
@@ -223,45 +478,6 @@ if uploaded_file is not None:
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
-
-    clf = DecisionTreeClassifier(criterion='entropy', random_state=42, max_depth=5)
-    clf.fit(X_train, y_train)
-    st.session_state.model = clf
-
-    y_pred = clf.predict(X_test)
-    acc = accuracy_score(y_test, y_pred)
-    cm = confusion_matrix(y_test, y_pred)
-
-    # PERFORMA MODEL
-    st.write("---")
-    st.header("📊 Performa Model Decision Tree C4.5")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric(label="🎯 Akurasi Model (Data Uji 20%)", value=f"{acc * 100:.2f} %")
-        st.text("Classification Report:")
-        st.text(classification_report(y_test, y_pred, target_names=list(target_map.values())))
-    with col2:
-        st.write("**Confusion Matrix:**")
-        fig_cm, ax_cm = plt.subplots(figsize=(6, 4))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-                    xticklabels=list(target_map.values()),
-                    yticklabels=list(target_map.values()), ax=ax_cm)
-        ax_cm.set_ylabel('Aktual')
-        ax_cm.set_xlabel('Prediksi')
-        plt.tight_layout()
-        st.pyplot(fig_cm)
-        plt.close(fig_cm)
-
-    # VISUALISASI POHON
-    st.write("---")
-    st.header("🌿 Visualisasi Pohon Keputusan (Decision Tree)")
-    fig, ax = plt.subplots(figsize=(22, 10))
-    plot_tree(clf, feature_names=feature_cols, class_names=list(target_map.values()),
-              filled=True, rounded=True, fontsize=9, ax=ax)
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close(fig)
 
     # FORM PREDIKSI
     st.write("---")
@@ -306,8 +522,8 @@ if uploaded_file is not None:
                 'Semester': input_semester,
             }])[feature_cols]
 
-            pred_code = st.session_state.model.predict(input_row)[0]
-            hasil = target_map[pred_code]
+            # KODE BARU (MANUAL):
+            hasil = prediksi_pohon_manual(st.session_state.pohon_manual, input_row)
 
             st.info(f"📅 Semester dihitung: **{input_semester} semester**")
             if hasil == 'Lulus Tepat Waktu':
