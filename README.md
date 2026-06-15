@@ -1,5 +1,5 @@
 # 🎓 Dashboard Prediksi Kelulusan Mahasiswa S1 Matematika UNAIR Menggunakan Algoritma C4.5
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)]([https://namaproyek.streamlit.app](https://algoritma-c45-kelompok-2-prediksikelulusan.streamlit.app/))
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)]([https://algoritma-c45-kelompok-2-prediksikelulusan.streamlit.app/])
 
 ## 📖 Deskripsi Proyek
 
