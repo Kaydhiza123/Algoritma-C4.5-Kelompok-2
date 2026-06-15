@@ -18,10 +18,11 @@ Program mampu:
   - Gain Ratio
 - Menampilkan proses perhitungan setiap iterasi.
 - Membentuk pohon keputusan secara rekursif.
-- Menampilkan visualisasi pohon keputusan.
+- Menampilkan visualisasi pohon keputusan dinamis menggunakan Graphviz.
 - Menghitung akurasi model menggunakan data uji.
 - Menampilkan confusion matrix.
-- Melakukan prediksi terhadap data mahasiswa baru melalui dashboard interaktif.
+- Melakukan kalkulasi otomatis waktu studi (Lama Studi & Semester) berdasarkan input tanggal. *(BARU)*
+- Melakukan prediksi terhadap data mahasiswa baru melalui dashboard interaktif 2-kolom yang simetris. *(REVISI)*
 
 ---
 
@@ -32,8 +33,9 @@ Penelitian ini bertujuan untuk mengimplementasikan algoritma **C4.5** dalam memp
 - IPK
 - Jumlah SKS
 - Skor SKP
-- Lama Studi
+- Tanggal Masuk *(BARU - Kini ikut dihitung sebagai atribut penentu node)*
 - Tanggal Yudisium
+- Lama Studi *(REVISI - Diubah menjadi nilai kontinu ordinal/riil)*
 - Semester
 
 Hasil prediksi terdiri dari dua kelas:
@@ -43,7 +45,17 @@ Hasil prediksi terdiri dari dua kelas:
 
 ---
 
-## ⚙️ Teknologi yang Digunakan
+## ⚙️ Fitur Interaktif & Validasi Dashboard (BARU)
+
+Untuk meningkatkan akurasi prediktif dan pengalaman pengguna (*user experience*), form prediksi mahasiswa baru pada dashboard kini dilengkapi dengan aturan dinamis:
+1. **Otomatisasi Lama Studi:** Pengguna hanya perlu memasukkan `Tanggal Masuk` dan `Tanggal Yudisium`. Sistem akan otomatis mengonversi selisih hari menjadi format tahun desimal (Lama Studi) dan jumlah Semester.
+2. **Validasi Kronologis:** Sistem akan memblokir proses prediksi dan menampilkan pesan *error* jika pengguna memasukkan `Tanggal Yudisium` yang mendahului `Tanggal Masuk`.
+3. **Penyelarasan Regulasi SKP:** Batas minimal input SKP disesuaikan menjadi **75** (mengikuti ambang batas minimal sepanjang sejarah angkatan) dan batas maksimum dihapus (`uncapped`) agar algoritma C4.5 dapat mengklasifikasikan fluktuasi aturan SKP antar-angkatan secara adil melalui nilai *Gain Ratio*.
+4. **Layout Simetris:** Form disusun menggunakan visualisasi 2 kolom (Data Akademik & Garis Waktu Studi) demi menjaga kerapian antarmuka Streamlit.
+
+---
+
+## 🛠️ Teknologi yang Digunakan
 
 - Python 3.x
 - Streamlit
