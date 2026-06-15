@@ -379,11 +379,16 @@ if uploaded_file is not None:
 
     # STEP 4: MODELING C4.5
     # Fitur: IPK (numerik), SKS, SKP (numerik), Lama Studi, Tanggal Yudisium, Semester
-    feature_cols = ['IPK', 'SKS', 'SKP', 'Lama Studi', 'Tanggal Yudisium', 'Semester']
+    feature_cols = ['IPK', 'SKS', 'SKP', 'Lama Studi', 'Tanggal Masuk','Tanggal Yudisium', 'Semester']
     df_model = df_processed.copy()
 
     # Konversi Tanggal Yudisium ke nilai numerik (ordinal)
     df_model['Tanggal Yudisium'] = pd.to_datetime(df_model['Tanggal Yudisium']).map(
+        lambda x: x.toordinal() if pd.notna(x) else np.nan
+    )
+
+    # Konversi Tanggal Masuk ke nilai numerik (ordinal)
+    df_model['Tanggal Masuk'] = pd.to_datetime(df_model['Tanggal Masuk']).map(
         lambda x: x.toordinal() if pd.notna(x) else np.nan
     )
 
@@ -484,24 +489,37 @@ if uploaded_file is not None:
     st.header("🔮 Prediksi Mahasiswa Baru")
 
     with st.form("prediction_form"):
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
+            st.markdown("##### 📊 Data Akademik")
             input_ipk = st.number_input("IPK (min. 2.00)", min_value=2.00, max_value=4.00, value=2.00, step=0.01, format="%.2f")
             input_sks = st.number_input("Jumlah SKS (min. 144)", min_value=144, max_value=160, value=144)
+            input_skp = st.number_input("Skor SKP (min. 75)", min_value=75, value=75)
         with c2:
-            input_skp = st.number_input("Skor SKP (min. 140)", min_value=140, max_value=600, value=140)
-            input_lama_studi = st.number_input("Lama Studi (tahun)", min_value=2.0, max_value=7.0, value=4.0, step=0.1, format="%.1f")
-        with c3:
+            st.markdown("##### 📅 Garis Waktu Studi")
             input_tanggal_masuk = st.date_input("Tanggal Masuk")
             input_tanggal_yudisium = st.date_input("Tanggal Yudisium")
 
-        submit_btn = st.form_submit_button("Prediksi Kelulusan")
+        submit_btn = st.form_submit_button("Prediksi Kelulusan", use_container_width=True)
 
         if submit_btn:
-            if input_sks < 144 or input_skp < 140:
-                st.warning("⚠️ SKS minimal 144, SKP minimal 140.")
+            if input_sks < 144 or input_skp < 75:
+                st.warning("⚠️ SKS minimal 144, SKP minimal 75.")
                 st.stop()
 
+            # Hitung Lama Studi (Tahun) secara otomatis dari selisih tanggal
+            try:
+                selisih_hari = (input_tanggal_yudisium - input_tanggal_masuk).days
+                # Validasi jika tanggal yudisium mendahului tanggal masuk
+                if selisih_hari < 0:
+                    st.error("⚠️ Tanggal Yudisium tidak boleh sebelum Tanggal Masuk.")
+                    st.stop()
+                
+                # Konversi hari ke tahun (dibagi 365.25 untuk akurasi tahun kabisat)
+                hitung_lama_studi = round(selisih_hari / 365.25, 1)
+            except:
+                hitung_lama_studi = 4.0 # Nilai default jika terjadi error
+            
             # Hitung semester dari input tanggal
             try:
                 masuk = pd.to_datetime(input_tanggal_masuk)
@@ -512,20 +530,25 @@ if uploaded_file is not None:
                 input_semester = 8
 
             input_tgl_yudisium_ordinal = pd.to_datetime(input_tanggal_yudisium).toordinal()
+            input_tgl_masuk_ordinal = pd.to_datetime(input_tanggal_masuk).toordinal()
 
+            st.info(f"📅 **Kalkulasi Otomatis Waktu Studi:**\n"
+                    f"* Lama Studi: **{hitung_lama_studi} Tahun**\n"
+                    f"* Semester: **{input_semester} Semester**")
+            
             input_row = pd.DataFrame([{
                 'IPK': input_ipk,
                 'SKS': input_sks,
                 'SKP': input_skp,
-                'Lama Studi': input_lama_studi,
+                'Lama Studi': hitung_lama_studi,
+                'Tanggal Masuk': input_tgl_masuk_ordinal,
                 'Tanggal Yudisium': input_tgl_yudisium_ordinal,
                 'Semester': input_semester,
             }])[feature_cols]
 
-            # KODE BARU (MANUAL):
+            #(MANUAL):
             hasil = prediksi_pohon_manual(st.session_state.pohon_manual, input_row)
 
-            st.info(f"📅 Semester dihitung: **{input_semester} semester**")
             if hasil == 'Lulus Tepat Waktu':
                 st.success(f"🎉 Hasil Prediksi: **{hasil}**")
             else:
