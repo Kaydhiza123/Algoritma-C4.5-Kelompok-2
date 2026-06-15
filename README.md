@@ -1,7 +1,5 @@
 # 🎓 Dashboard Prediksi Kelulusan C4.5 S1 Matematika UNAIR
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://algoritma-c45-kelompok-2-proyekdatamining.streamlit.app/)
-
 Aplikasi web interaktif berbasis **Streamlit** untuk memprediksi kelulusan tepat waktu mahasiswa S1 Matematika Universitas Airlangga menggunakan algoritma pohon keputusan **C4.5 (Decision Tree dengan kriteria Entropy/Information Gain)**.
 
 ---
@@ -10,7 +8,7 @@ Aplikasi web interaktif berbasis **Streamlit** untuk memprediksi kelulusan tepat
 
 - **Parsing otomatis** file Excel multi-header (data dari beberapa batch wisuda)
 - **Cleaning data otomatis** termasuk parsing kolom Jenis Kelamin dari format centang (L/P)
-- **Kategorisasi fitur** sesuai pedoman akademik UNAIR
+- **Penghitungan otomatis** atribut Semester dari selisih Tanggal Masuk dan Tanggal Yudisium
 - **Visualisasi pohon keputusan** C4.5
 - **Evaluasi model** (akurasi, confusion matrix, classification report)
 - **Form prediksi interaktif** untuk data mahasiswa baru
@@ -33,7 +31,6 @@ File Excel yang diunggah harus memiliki kolom berikut:
 | `TANGGAL YUDISIUM` | Tanggal yudisium/wisuda |
 | `IPK` | Indeks Prestasi Kumulatif (min. 2.00) |
 | `SKS` | Jumlah SKS yang ditempuh (min. 144) |
-| `ELPT` | Skor English Language Proficiency Test (min. 450) |
 | `SKP` | Skor Kreativitas dan Prestasi (min. 140) |
 | `LAMA STUDI` / `MASA STUDI` | Lama studi dalam tahun (desimal) |
 
@@ -41,29 +38,18 @@ File Excel yang diunggah harus memiliki kolom berikut:
 
 ---
 
-## 🔢 Kategorisasi Atribut
+## 🔢 Atribut Model
 
-### Asal Mahasiswa
-| Kategori | Wilayah |
-|----------|---------|
-| Gerbangkertosusila | Surabaya, Sidoarjo, Gresik, Bangkalan, Mojokerto, Lamongan |
-| Lokal | Kota/kabupaten lain di Jawa Timur |
-| Jabodetabek | Jakarta, Bogor, Depok, Tangerang, Bekasi |
-| Non-lokal | Seluruh wilayah di luar kategori di atas |
+Atribut yang digunakan sebagai fitur dalam model C4.5:
 
-### IPK
-| Kategori | Rentang |
-|----------|---------|
-| Memuaskan | 2,00 – 2,75 |
-| Sangat Memuaskan | 2,76 – 3,50 |
-| Cumlaude | 3,51 – 4,00 |
-
-### SKP
-| Kategori | Rentang |
-|----------|---------|
-| Cukup | 140 – 250 |
-| Baik | 251 – 400 |
-| Sangat Baik | > 400 |
+| Atribut | Tipe | Keterangan |
+|---------|------|-----------|
+| `IPK` | Numerik | Indeks Prestasi Kumulatif |
+| `SKS` | Numerik | Jumlah SKS yang ditempuh |
+| `SKP` | Numerik | Skor Kreativitas dan Prestasi |
+| `Lama Studi` | Numerik | Lama studi dalam tahun (desimal) |
+| `Tanggal Yudisium` | Numerik (ordinal) | Tanggal yudisium dikonversi ke nilai ordinal |
+| `Semester` | Numerik | Dihitung otomatis dari selisih Tanggal Masuk dan Tanggal Yudisium (bulan ÷ 6) |
 
 ### Label Target
 | Label | Kriteria |
@@ -120,7 +106,7 @@ openpyxl>=3.1.0
 3. Aplikasi otomatis memproses data melalui tahapan:
    - **Parsing** → menggabungkan semua tabel dari berbagai batch wisuda
    - **Cleaning** → memperbaiki format, menghapus data tidak lengkap
-   - **Kategorisasi** → mengklasifikasikan atribut sesuai pedoman akademik
+   - **Penghitungan Semester** → dihitung otomatis dari selisih Tanggal Masuk dan Tanggal Yudisium
    - **Modeling** → membangun pohon keputusan C4.5
 4. Lihat hasil evaluasi model dan visualisasi pohon keputusan
 5. Gunakan form prediksi di bagian bawah untuk memprediksi mahasiswa baru
@@ -133,7 +119,7 @@ openpyxl>=3.1.0
 |--------|-----------|
 | Tabel parsing | Preview data setelah digabung dari semua batch |
 | Ringkasan cleaning | Jumlah data masuk, dihapus, dan siap diproses |
-| Tabel kategorisasi | Data dengan kolom kategori hasil preprocessing |
+| Tabel atribut | Data dengan kolom fitur hasil preprocessing |
 | Akurasi model | Persentase akurasi pada data uji (20%) |
 | Classification report | Precision, recall, F1-score per kelas |
 | Confusion matrix | Heatmap prediksi vs aktual |
@@ -157,3 +143,4 @@ openpyxl>=3.1.0
 - Algoritma C4.5 diimplementasikan menggunakan `DecisionTreeClassifier` dengan `criterion='entropy'` dari scikit-learn
 - Split data: 80% training, 20% testing dengan stratifikasi kelas
 - Kedalaman pohon maksimal (`max_depth`) = 5
+- Kolom Jenis Kelamin tetap diparse dan ditampilkan pada tahap cleaning, namun tidak digunakan sebagai fitur model
