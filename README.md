@@ -63,5 +63,3 @@ project/
 ├── c4.5.py
 ├── README.md
 ├── requirements.txt
-└── dataset/
-    └── data_lulusan.xlsx
