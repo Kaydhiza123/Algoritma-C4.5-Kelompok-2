@@ -85,7 +85,7 @@ def cleaning_data(df):
     df_clean.rename(columns=rename_map, inplace=True)
     
     # Konversi numerik
-    for col in ['IPK', 'SKS', 'ELPT', 'SKP', 'Lama Studi']:
+    for col in ['IPK', 'SKS', 'SKP', 'Lama Studi']:
         if col in df_clean.columns:
             df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce')
     
@@ -94,12 +94,8 @@ def cleaning_data(df):
         if col in df_clean.columns:
             df_clean[col] = pd.to_datetime(df_clean[col], errors='coerce')
     
-    # Bersihkan Asal
-    if 'Asal' in df_clean.columns:
-        df_clean['Asal'] = df_clean['Asal'].astype(str).str.strip().str.rstrip(',').str.strip()
-    
     # Drop baris dengan nilai kritis yang kosong
-    kritis = ['Jenis Kelamin', 'IPK', 'SKS', 'ELPT', 'SKP', 'Lama Studi', 'Asal']
+    kritis = ['Jenis Kelamin', 'IPK', 'SKS', 'SKP', 'Lama Studi', 'Tanggal Yudisium', 'Tanggal Masuk']
     kritis_ada = [k for k in kritis if k in df_clean.columns]
     before = len(df_clean)
     df_clean.dropna(subset=kritis_ada, inplace=True)
@@ -114,44 +110,17 @@ def cleaning_data(df):
 def kategorisasi_data(df):
     df_kat = df.copy()
 
-    gerbangkertosusila = ['surabaya', 'sidoarjo', 'gresik', 'bangkalan', 'mojokerto', 'lamongan']
-    jabodetabek = ['jakarta', 'bogor', 'depok', 'tangerang', 'bekasi']
-    jawa_timur = [
-    # Kota
-    'malang', 'kediri', 'blitar', 'probolinggo',
-    'pasuruan', 'madiun', 'batu',
-    # Kabupaten
-    'sampang', 'pamekasan', 'sumenep',
-    'bojonegoro', 'tuban', 'ngawi', 'magetan',
-    'ponorogo', 'pacitan', 'trenggalek', 'tulungagung',
-    'nganjuk', 'jombang',
-    'lumajang', 'jember', 'bondowoso',
-    'situbondo', 'banyuwangi'
-    ]
+    # Hitung Semester dari selisih Tanggal Masuk → Tanggal Yudisium (dalam bulan / 6)
+    def hitung_semester(row):
+        try:
+            masuk = pd.to_datetime(row['Tanggal Masuk'])
+            yudisium = pd.to_datetime(row['Tanggal Yudisium'])
+            selisih_bulan = (yudisium.year - masuk.year) * 12 + (yudisium.month - masuk.month)
+            return round(selisih_bulan / 6)
+        except:
+            return np.nan
 
-    def klasifikasi_asal(asal):
-        asal_str = str(asal).strip().lower()
-        if asal_str in gerbangkertosusila:
-            return 'Gerbangkertosusila'
-        elif asal_str in jabodetabek:
-            return 'Jabodetabek'
-        elif asal_str in jawa_timur:
-            return 'Lokal'
-        else:
-            return 'Non-lokal'
-
-    df_kat['Asal_Kat'] = df_kat['Asal'].apply(klasifikasi_asal)
-
-    df_kat['IPK_Kat'] = df_kat['IPK'].apply(
-        lambda x: 'Memuaskan' if 2.00 <= x <= 2.75
-        else ('Sangat Memuaskan' if 2.76 <= x <= 3.50
-        else ('Cumlaude' if 3.51 <= x <= 4.00 else 'Lainnya'))
-    )
-
-    df_kat['SKP_Kat'] = df_kat['SKP'].apply(
-        lambda x: 'SANGAT BAIK' if x > 400
-        else ('BAIK' if 251 <= x <= 400 else 'CUKUP')
-    )
+    df_kat['Semester'] = df_kat.apply(hitung_semester, axis=1)
 
     def klasifikasi_status(row):
         lama_studi = float(row['Lama Studi'])
@@ -213,7 +182,7 @@ if uploaded_file is not None:
     st.write("**Distribusi Jenis Kelamin (hasil parsing kolom L/P):**")
     st.dataframe(df_clean['Jenis Kelamin'].value_counts().rename_axis('Jenis Kelamin').reset_index(name='Jumlah'))
 
-    tampil_cols = ['NIM', 'Nama', 'Jenis Kelamin', 'Asal', 'IPK', 'SKS', 'ELPT', 'SKP', 'Lama Studi', 'Tanggal Yudisium']
+    tampil_cols = ['NIM', 'Nama', 'Jenis Kelamin', 'IPK', 'SKS', 'SKP', 'Lama Studi', 'Tanggal Masuk', 'Tanggal Yudisium']
     tampil_ada = [c for c in tampil_cols if c in df_clean.columns]
     st.dataframe(df_clean[tampil_ada].head(10))
 
@@ -221,26 +190,26 @@ if uploaded_file is not None:
     df_processed = kategorisasi_data(df_clean)
 
     st.subheader("✨ Hasil Kategorisasi Fitur")
-    kat_cols = ['Jenis Kelamin', 'Asal', 'Asal_Kat', 'IPK', 'IPK_Kat', 'SKS', 'ELPT', 'SKP', 'SKP_Kat', 'Lama Studi', 'Status']
-    st.dataframe(df_processed[kat_cols].head(10))
+    kat_cols = ['Jenis Kelamin', 'IPK', 'SKS', 'SKP', 'Lama Studi', 'Tanggal Yudisium', 'Semester', 'Status']
+    kat_cols_ada = [c for c in kat_cols if c in df_processed.columns]
+    st.dataframe(df_processed[kat_cols_ada].head(10))
 
     st.write("**Distribusi Target (Status Kelulusan):**")
     st.dataframe(df_processed['Status'].value_counts().rename_axis('Status').reset_index(name='Jumlah'))
 
     # STEP 4: MODELING C4.5
-    feature_cols = ['Jenis Kelamin', 'Asal_Kat', 'IPK_Kat', 'SKS', 'ELPT', 'SKP_Kat']
-    X = df_processed[feature_cols].copy()
-    y = df_processed['Status'].copy()
+    # Fitur: IPK (numerik), SKS, SKP (numerik), Lama Studi, Tanggal Yudisium, Semester
+    feature_cols = ['IPK', 'SKS', 'SKP', 'Lama Studi', 'Tanggal Yudisium', 'Semester']
 
-    # Encode semua kolom — paksa semua ke numerik tanpa cek dtype
-    # (Python 3.14 pakai dtype 'str' bukan 'object', jadi cek dtype tidak reliable)
-    encoded_maps = {}
-    label_encoders = {}
-    for col in feature_cols:
-        le = LabelEncoder()
-        X[col] = le.fit_transform(X[col].astype(str))
-        encoded_maps[col] = dict(enumerate(le.classes_))
-        label_encoders[col] = le
+    df_model = df_processed.copy()
+
+    # Konversi Tanggal Yudisium ke nilai numerik (ordinal)
+    df_model['Tanggal Yudisium'] = pd.to_datetime(df_model['Tanggal Yudisium']).map(
+        lambda x: x.toordinal() if pd.notna(x) else np.nan
+    )
+
+    X = df_model[feature_cols].copy()
+    y = df_model['Status'].copy()
 
     # Encode target
     le_target = LabelEncoder()
@@ -248,8 +217,6 @@ if uploaded_file is not None:
     y = le_target.transform(y.astype(str))
     target_map = dict(enumerate(le_target.classes_))
 
-    st.session_state.encoded_categories = encoded_maps
-    st.session_state.label_encoders = label_encoders
     st.session_state.target_map = target_map
     st.session_state.features = feature_cols
 
@@ -303,57 +270,46 @@ if uploaded_file is not None:
     with st.form("prediction_form"):
         c1, c2, c3 = st.columns(3)
         with c1:
-            input_jk = st.selectbox("Jenis Kelamin", options=list(encoded_maps['Jenis Kelamin'].values()))
-            input_asal = st.selectbox("Kategori Asal Daerah", options=list(encoded_maps['Asal_Kat'].values()))
-        with c2:
             input_ipk = st.number_input("IPK (min. 2.00)", min_value=2.00, max_value=4.00, value=2.00, step=0.01, format="%.2f")
-        with c3:
             input_sks = st.number_input("Jumlah SKS (min. 144)", min_value=144, max_value=160, value=144)
-            input_elpt = st.number_input("Skor ELPT (min. 450)", min_value=450, max_value=677, value=450)
+        with c2:
             input_skp = st.number_input("Skor SKP (min. 140)", min_value=140, max_value=600, value=140)
+            input_lama_studi = st.number_input("Lama Studi (tahun)", min_value=2.0, max_value=7.0, value=4.0, step=0.1, format="%.1f")
+        with c3:
+            input_tanggal_masuk = st.date_input("Tanggal Masuk")
+            input_tanggal_yudisium = st.date_input("Tanggal Yudisium")
 
         submit_btn = st.form_submit_button("Prediksi Kelulusan")
 
         if submit_btn:
-            def get_key(val, my_dict):
-                for k, v in my_dict.items():
-                    if val == v:
-                        return k
-                return 0
-
-            def kategorisasi_skp_input(skp):
-                if skp > 400:
-                    return 'SANGAT BAIK'
-                elif 251 <= skp <= 400:
-                    return 'BAIK'
-                else:
-                    return 'CUKUP'
-
-            def kategorisasi_ipk_input(ipk):
-                ipk = float(ipk)
-                if 2.00 <= ipk <= 2.75:
-                    return 'Memuaskan'
-                elif 2.76 <= ipk <= 3.50:
-                    return 'Sangat Memuaskan'
-                else:
-                    return 'Cumlaude'
-            
-            if input_sks < 144 or input_elpt < 450 or input_skp < 140:
-                st.warning("⚠️ SKS minimal 144, ELPT minimal 450, SKP minimal 140.")
+            if input_sks < 144 or input_skp < 140:
+                st.warning("⚠️ SKS minimal 144, SKP minimal 140.")
                 st.stop()
 
+            # Hitung semester dari input tanggal
+            try:
+                masuk = pd.to_datetime(input_tanggal_masuk)
+                yudisium = pd.to_datetime(input_tanggal_yudisium)
+                selisih_bulan = (yudisium.year - masuk.year) * 12 + (yudisium.month - masuk.month)
+                input_semester = round(selisih_bulan / 6)
+            except:
+                input_semester = 8
+
+            input_tgl_yudisium_ordinal = pd.to_datetime(input_tanggal_yudisium).toordinal()
+
             input_row = pd.DataFrame([{
-                'Jenis Kelamin': get_key(input_jk, encoded_maps['Jenis Kelamin']),
-                'Asal_Kat': get_key(input_asal, encoded_maps['Asal_Kat']),
-                'IPK_Kat': get_key(kategorisasi_ipk_input(input_ipk), encoded_maps['IPK_Kat']),
+                'IPK': input_ipk,
                 'SKS': input_sks,
-                'ELPT': input_elpt,
-                'SKP_Kat': get_key(kategorisasi_skp_input(input_skp), encoded_maps['SKP_Kat'])
+                'SKP': input_skp,
+                'Lama Studi': input_lama_studi,
+                'Tanggal Yudisium': input_tgl_yudisium_ordinal,
+                'Semester': input_semester,
             }])[feature_cols]
 
             pred_code = st.session_state.model.predict(input_row)[0]
             hasil = target_map[pred_code]
 
+            st.info(f"📅 Semester dihitung: **{input_semester} semester**")
             if hasil == 'Lulus Tepat Waktu':
                 st.success(f"🎉 Hasil Prediksi: **{hasil}**")
             else:
