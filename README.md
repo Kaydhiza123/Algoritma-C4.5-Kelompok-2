@@ -1,146 +1,67 @@
-# 🎓 Dashboard Prediksi Kelulusan C4.5 S1 Matematika UNAIR
+# 🎓 Dashboard Prediksi Kelulusan Mahasiswa S1 Matematika UNAIR Menggunakan Algoritma C4.5
 
-Aplikasi web interaktif berbasis **Streamlit** untuk memprediksi kelulusan tepat waktu mahasiswa S1 Matematika Universitas Airlangga menggunakan algoritma pohon keputusan **C4.5 (Decision Tree dengan kriteria Entropy/Information Gain)**.
+## 📖 Deskripsi Proyek
 
----
+Aplikasi ini merupakan dashboard berbasis **Streamlit** yang digunakan untuk melakukan prediksi status kelulusan mahasiswa S1 Matematika Universitas Airlangga menggunakan algoritma **C4.5** yang dihitung secara manual.
 
-## 📋 Fitur Utama
+Program mampu:
 
-- **Parsing otomatis** file Excel multi-header (data dari beberapa batch wisuda)
-- **Cleaning data otomatis** termasuk parsing kolom Jenis Kelamin dari format centang (L/P)
-- **Penghitungan otomatis** atribut Semester dari selisih Tanggal Masuk dan Tanggal Yudisium
-- **Visualisasi pohon keputusan** C4.5
-- **Evaluasi model** (akurasi, confusion matrix, classification report)
-- **Form prediksi interaktif** untuk data mahasiswa baru
-
----
-
-## 🗂️ Struktur Dataset
-
-File Excel yang diunggah harus memiliki kolom berikut:
-
-| Kolom | Keterangan |
-|-------|-----------|
-| `NO` | Nomor urut |
-| `NIM` | Nomor Induk Mahasiswa |
-| `NAMA` | Nama mahasiswa |
-| `L` | Kolom jenis kelamin laki-laki (isi `v` jika laki-laki) |
-| `P` | Kolom jenis kelamin perempuan (isi `v` jika perempuan) |
-| `ASAL` | Kota/kabupaten asal mahasiswa |
-| `TANGGAL MASUK` | Tanggal masuk kuliah |
-| `TANGGAL YUDISIUM` | Tanggal yudisium/wisuda |
-| `IPK` | Indeks Prestasi Kumulatif (min. 2.00) |
-| `SKS` | Jumlah SKS yang ditempuh (min. 144) |
-| `SKP` | Skor Kreativitas dan Prestasi (min. 140) |
-| `LAMA STUDI` / `MASA STUDI` | Lama studi dalam tahun (desimal) |
-
-> File dapat berisi beberapa tabel dengan header berulang (per batch wisuda) — aplikasi akan menggabungkannya secara otomatis.
+- Membaca data mentah lulusan dalam format Excel.
+- Melakukan parsing data multi-header secara otomatis.
+- Melakukan cleaning data.
+- Menghasilkan fitur tambahan (Semester).
+- Menghitung algoritma C4.5 secara manual menggunakan:
+  - Entropy
+  - Information Gain
+  - Split Information
+  - Gain Ratio
+- Menampilkan proses perhitungan setiap iterasi.
+- Membentuk pohon keputusan secara rekursif.
+- Menampilkan visualisasi pohon keputusan.
+- Menghitung akurasi model menggunakan data uji.
+- Menampilkan confusion matrix.
+- Melakukan prediksi terhadap data mahasiswa baru melalui dashboard interaktif.
 
 ---
 
-## 🔢 Atribut Model
+## 🎯 Tujuan Penelitian
 
-Atribut yang digunakan sebagai fitur dalam model C4.5:
+Penelitian ini bertujuan untuk mengimplementasikan algoritma **C4.5** dalam memprediksi kelulusan mahasiswa berdasarkan beberapa faktor akademik, yaitu:
 
-| Atribut | Tipe | Keterangan |
-|---------|------|-----------|
-| `IPK` | Numerik | Indeks Prestasi Kumulatif |
-| `SKS` | Numerik | Jumlah SKS yang ditempuh |
-| `SKP` | Numerik | Skor Kreativitas dan Prestasi |
-| `Lama Studi` | Numerik | Lama studi dalam tahun (desimal) |
-| `Tanggal Yudisium` | Numerik (ordinal) | Tanggal yudisium dikonversi ke nilai ordinal |
-| `Semester` | Numerik | Dihitung otomatis dari selisih Tanggal Masuk dan Tanggal Yudisium (bulan ÷ 6) |
+- IPK
+- Jumlah SKS
+- Skor SKP
+- Lama Studi
+- Tanggal Yudisium
+- Semester
 
-### Label Target
-| Label | Kriteria |
-|-------|---------|
-| Lulus Tepat Waktu | Lama studi ≤ 4 tahun, atau lama studi < 4,5 tahun dengan yudisium ≤ Juni |
-| Tidak Lulus Tepat Waktu | Lama studi ≥ 4,5 tahun, atau lama studi < 4,5 tahun dengan yudisium > Juni |
+Hasil prediksi terdiri dari dua kelas:
+
+- **Lulus Tepat Waktu**
+- **Tidak Lulus Tepat Waktu**
 
 ---
 
-## ⚙️ Instalasi
+## ⚙️ Teknologi yang Digunakan
 
-### 1. Prasyarat
-- Python 3.9 atau lebih baru
-- pip
-
-### 2. Clone atau download project
-```bash
-git clone <url-repo>
-cd <nama-folder>
-```
-
-### 3. Install dependensi
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Jalankan aplikasi
-```bash
-streamlit run c4.5.py
-```
-
-Aplikasi akan terbuka otomatis di browser pada `http://localhost:8501`.
+- Python 3.x
+- Streamlit
+- Pandas
+- NumPy
+- Scikit-Learn
+- Matplotlib
+- Seaborn
+- Graphviz
 
 ---
 
-## 📦 Dependensi
+## 📂 Struktur Program
 
-```
-streamlit>=1.30.0
-pandas>=2.0.0
-numpy>=1.24.0
-scikit-learn>=1.2.0
-matplotlib>=3.7.0
-seaborn>=0.12.0
-openpyxl>=3.1.0
-```
-
----
-
-## 🚀 Cara Penggunaan
-
-1. Jalankan aplikasi dengan `streamlit run c4.5.py`
-2. Unggah file Excel (`.xlsx`) data lulusan di sidebar kiri
-3. Aplikasi otomatis memproses data melalui tahapan:
-   - **Parsing** → menggabungkan semua tabel dari berbagai batch wisuda
-   - **Cleaning** → memperbaiki format, menghapus data tidak lengkap
-   - **Penghitungan Semester** → dihitung otomatis dari selisih Tanggal Masuk dan Tanggal Yudisium
-   - **Modeling** → membangun pohon keputusan C4.5
-4. Lihat hasil evaluasi model dan visualisasi pohon keputusan
-5. Gunakan form prediksi di bagian bawah untuk memprediksi mahasiswa baru
-
----
-
-## 📊 Output Aplikasi
-
-| Output | Keterangan |
-|--------|-----------|
-| Tabel parsing | Preview data setelah digabung dari semua batch |
-| Ringkasan cleaning | Jumlah data masuk, dihapus, dan siap diproses |
-| Tabel atribut | Data dengan kolom fitur hasil preprocessing |
-| Akurasi model | Persentase akurasi pada data uji (20%) |
-| Classification report | Precision, recall, F1-score per kelas |
-| Confusion matrix | Heatmap prediksi vs aktual |
-| Pohon keputusan | Visualisasi C4.5 dengan kedalaman maksimal 5 |
-| Form prediksi | Input data mahasiswa baru → hasil prediksi langsung |
-
----
-
-## 👨‍💻 Teknologi
-
-- **Python** — bahasa pemrograman utama
-- **Streamlit** — framework dashboard web
-- **scikit-learn** — implementasi algoritma C4.5 (Decision Tree Entropy)
-- **pandas & numpy** — manipulasi dan preprocessing data
-- **matplotlib & seaborn** — visualisasi grafik
-
----
-
-## 📝 Catatan
-
-- Algoritma C4.5 diimplementasikan menggunakan `DecisionTreeClassifier` dengan `criterion='entropy'` dari scikit-learn
-- Split data: 80% training, 20% testing dengan stratifikasi kelas
-- Kedalaman pohon maksimal (`max_depth`) = 5
-- Kolom Jenis Kelamin tetap diparse dan ditampilkan pada tahap cleaning, namun tidak digunakan sebagai fitur model
+```text
+project/
+│
+├── c4.5.py
+├── README.md
+├── requirements.txt
+└── dataset/
+    └── data_lulusan.xlsx
