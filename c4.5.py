@@ -119,9 +119,38 @@ def kategorisasi_data(df):
             return round(selisih_bulan / 6)
         except:
             return np.nan
-
     df_kat['Semester'] = df_kat.apply(hitung_semester, axis=1)
+    
+    # Hitung Rasio SKP untuk setiap baris data
+    def hitung_rasio_skp(row):
+        try:
+            skp_min = get_skp_minimal(row['Tanggal Masuk'])
+            skp_asli = float(row['SKP'])
+            return round(skp_asli / skp_min, 4)
+        except:
+            return np.nan
+    df_kat['SKP Ratio'] = df_kat.apply(hitung_rasio_skp, axis=1)
     return df_kat
+
+def get_skp_minimal(tanggal_masuk):
+    try:
+        # Ekstrak tahun jika berupa objek datetime/Timestamp
+        tahun = pd.to_datetime(tanggal_masuk).year
+    except:
+        # Jika sudah berupa angka ordinal atau int
+        try:
+            tahun = pd.to_datetime(tanggal_masuk, unit='D').year
+        except:
+            tahun = 2020 # Default jika gagal parsing
+            
+    if tahun <= 2015:
+        return 75
+    elif 2016 <= tahun <= 2019:
+        return 100
+    elif 2020 <= tahun <= 2025:
+        return 140
+    else:
+        return 140 # Default untuk tahun > 2025
 
 # ==========================================================
 # FUNGSI PERHITUNGAN MATEMATIKA C4.5 SECARA MANUAL
@@ -370,7 +399,7 @@ if uploaded_file is not None:
     df_processed = kategorisasi_data(df_clean)
     
     st.subheader("✨ Hasil Kategorisasi Fitur")
-    kat_cols = ['Jenis Kelamin', 'IPK', 'SKS', 'SKP', 'Lama Studi', 'Tanggal Yudisium', 'Semester', 'STATUS']
+    kat_cols = ['Jenis Kelamin', 'IPK', 'SKS', 'SKP', 'SKP Ratio', 'Lama Studi', 'Tanggal Yudisium', 'Semester', 'STATUS']
     kat_cols_ada = [c for c in kat_cols if c in df_processed.columns]
     st.dataframe(df_processed[kat_cols_ada].head(10))
 
@@ -382,6 +411,17 @@ if uploaded_file is not None:
     feature_cols = ['IPK', 'SKS', 'SKP', 'Lama Studi', 'Tanggal Masuk','Tanggal Yudisium', 'Semester']
     df_model = df_processed.copy()
 
+    # Timpa nilai SKP mentah dengan SKP Ratio yang sudah dihitung di STEP 3
+    if 'SKP Ratio' in df_model.columns:
+        df_model['SKP'] = df_model['SKP Ratio']
+    else:
+        # Antisipasi darurat jika kolom gagal terbuat di fungsi atas
+        def hitung_rasio_skp_darurat(row):
+            skp_min = get_skp_minimal(row['Tanggal Masuk'])
+            return round(float(row['SKP']) / skp_min, 3) if pd.notna(row['SKP']) else np.nan
+        
+        df_model['SKP'] = df_model.apply(hitung_rasio_skp_darurat, axis=1)
+
     # Konversi Tanggal Yudisium ke nilai numerik (ordinal)
     df_model['Tanggal Yudisium'] = pd.to_datetime(df_model['Tanggal Yudisium']).map(
         lambda x: x.toordinal() if pd.notna(x) else np.nan
@@ -391,6 +431,14 @@ if uploaded_file is not None:
     df_model['Tanggal Masuk'] = pd.to_datetime(df_model['Tanggal Masuk']).map(
         lambda x: x.toordinal() if pd.notna(x) else np.nan
     )
+
+    # Hitung Rasio SKP untuk setiap baris di dataset berdasarkan Tanggal Masuk
+    def hitung_rasio_skp(row):
+        skp_min = get_skp_minimal(row['Tanggal Masuk'])
+        return row['SKP'] / skp_min
+
+    # Ubah nilai SKP menjadi nilai rasio SKP/SKP_Minimal
+    df_model['SKP'] = df_model.apply(hitung_rasio_skp, axis=1)
 
     X = df_model[feature_cols].copy()
     y = df_model['STATUS'].copy()
@@ -413,7 +461,7 @@ if uploaded_file is not None:
 
     for idx, df_iterasi in enumerate(st.session_state.list_tabel_iterasi):
         node_name = df_iterasi["Node/Iterasi"].iloc[0]
-        st.subheader(f"📍 Langkah {idx + 1}: Perhitungan pada {node_name}")
+        st.subheader(f"📍 Iterasi {idx + 1}: Perhitungan pada {node_name}")
         
         # Cari pemenang di iterasi ini
         df_sorted = df_iterasi.sort_values(by="Gain Ratio (C4.5)", ascending=False).reset_index(drop=True)
@@ -497,8 +545,25 @@ if uploaded_file is not None:
             input_skp = st.number_input("Skor SKP (<=2015 min. 75, 2016-2019 min. 100, 2020-2025 min. 140)", min_value=75, value=75)
         with c2:
             st.markdown("##### 📅 Garis Waktu Studi")
-            input_tanggal_masuk = st.date_input("Tanggal Masuk")
-            input_tanggal_yudisium = st.date_input("Tanggal Yudisium")
+            
+            # Mendefinisikan batas minimum dan maksimum tanggal yang bisa dipilih
+            import datetime
+            min_date = datetime.date(2000, 1, 1)
+            max_date = datetime.date(2030, 12, 31)
+            
+            # Tambahkan parameter min_value dan max_value
+            input_tanggal_masuk = st.date_input(
+                "Tanggal Masuk", 
+                value=datetime.date(2020, 1, 1), # Nilai default awal saat form dimuat
+                min_value=min_date, 
+                max_value=max_date
+            )
+            input_tanggal_yudisium = st.date_input(
+                "Tanggal Yudisium", 
+                value=datetime.date(2024, 1, 1), # Nilai default awal saat form dimuat
+                min_value=min_date, 
+                max_value=max_date
+            )
 
         submit_btn = st.form_submit_button("Prediksi Kelulusan", use_container_width=True)
 
@@ -550,6 +615,7 @@ if uploaded_file is not None:
 
             input_tgl_yudisium_ordinal = pd.to_datetime(input_tanggal_yudisium).toordinal()
             input_tgl_masuk_ordinal = pd.to_datetime(input_tanggal_masuk).toordinal()
+            input_skp_rasio = input_skp / skp_minimal
 
             st.info(f"📅 **Kalkulasi Otomatis Waktu Studi:**\n"
                     f"* Lama Studi: **{hitung_lama_studi} Tahun**\n"
@@ -558,7 +624,7 @@ if uploaded_file is not None:
             input_row = pd.DataFrame([{
                 'IPK': input_ipk,
                 'SKS': input_sks,
-                'SKP': input_skp,
+                'SKP': input_skp_rasio,
                 'Lama Studi': hitung_lama_studi,
                 'Tanggal Masuk': input_tgl_masuk_ordinal,
                 'Tanggal Yudisium': input_tgl_yudisium_ordinal,
