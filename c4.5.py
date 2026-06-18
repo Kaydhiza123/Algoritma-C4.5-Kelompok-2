@@ -181,8 +181,9 @@ def cari_split_terbaik(X_col, y_curr):
     best_gain = 0
     
     # Cek setiap kemungkinan titik tengah (midpoint) sebagai threshold
-    for i in range(len(values) - 1):
-        threshold = (values[i] + values[i+1]) / 2
+    for val in values:
+        # Menjadikan angka aktual saat ini sebagai batas pembagi saklek
+        threshold = val
         
         left_mask = X_col <= threshold
         right_mask = X_col > threshold
@@ -190,6 +191,7 @@ def cari_split_terbaik(X_col, y_curr):
         y_left = y_curr[left_mask]
         y_right = y_curr[right_mask]
         
+        # Lewati jika pembagian tidak menghasilkan 2 kubu (misal angka terbesar di dataset)
         if len(y_left) == 0 or len(y_right) == 0:
             continue
             
@@ -202,7 +204,7 @@ def cari_split_terbaik(X_col, y_curr):
             (len(y_right) / total_data) * entropi_right
         )
         
-        # Hitung Split Information (untuk melengkapi C4.5 Gain Ratio)
+        # Hitung Split Information
         p_left = len(y_left) / total_data
         p_right = len(y_right) / total_data
         split_info = - (p_left * np.log2(p_left) + p_right * np.log2(p_right))
@@ -260,9 +262,13 @@ def bangun_pohon_manual(X_curr, y_curr, list_tabel_iterasi, info_node="Root"):
     mask_kiri = X_curr[best_attr] <= best_thresh
     mask_kanan = X_curr[best_attr] > best_thresh
     
-    # Buat cabang anak (Child Node)
-    cabang_kiri = bangun_pohon_manual(X_curr[mask_kiri], y_curr[mask_kiri], list_tabel_iterasi, f"Cabang: {best_attr} <= {best_thresh:.2f}")
-    cabang_kanan = bangun_pohon_manual(X_curr[mask_kanan], y_curr[mask_kanan], list_tabel_iterasi, f"Cabang: {best_attr} > {best_thresh:.2f}")
+    # Hapus atribut terpilih (best_attr) agar tidak bisa dipilih lagi pada percabangan di bawahnya
+    X_kiri_baru = X_curr[mask_kiri].drop(columns=[best_attr])
+    X_kanan_baru = X_curr[mask_kanan].drop(columns=[best_attr])
+    
+    # Buat cabang anak (Child Node) dengan melemparkan dataframe yang atributnya sudah berkurang
+    cabang_kiri = bangun_pohon_manual(X_kiri_baru, y_curr[mask_kiri], list_tabel_iterasi, f"Cabang: {best_attr} <= {best_thresh:.2f}")
+    cabang_kanan = bangun_pohon_manual(X_kanan_baru, y_curr[mask_kanan], list_tabel_iterasi, f"Cabang: {best_attr} > {best_thresh:.2f}")
     
     return {
         "atribut": best_attr,
