@@ -494,7 +494,7 @@ if uploaded_file is not None:
             st.markdown("##### 📊 Data Akademik")
             input_ipk = st.number_input("IPK (min. 2.00)", min_value=2.00, max_value=4.00, value=2.00, step=0.01, format="%.2f")
             input_sks = st.number_input("Jumlah SKS (min. 144)", min_value=144, max_value=160, value=144)
-            input_skp = st.number_input("Skor SKP (min. 75)", min_value=75, value=75)
+            input_skp = st.number_input("Skor SKP (<=2015 min. 75, 2016-2019 min. 100, 2020-2025 min. 140)", min_value=75, value=75)
         with c2:
             st.markdown("##### 📅 Garis Waktu Studi")
             input_tanggal_masuk = st.date_input("Tanggal Masuk")
@@ -503,8 +503,27 @@ if uploaded_file is not None:
         submit_btn = st.form_submit_button("Prediksi Kelulusan", use_container_width=True)
 
         if submit_btn:
-            if input_sks < 144 or input_skp < 75:
-                st.warning("⚠️ SKS minimal 144, SKP minimal 75.")
+            # 1. Ambil tahun dari tanggal masuk
+            tahun_masuk = input_tanggal_masuk.year
+            
+            # 2. Tentukan batasan SKP berdasarkan aturan tahun masuk
+            if tahun_masuk <= 2015:
+                skp_minimal = 75
+            elif 2016 <= tahun_masuk <= 2019:
+                skp_minimal = 100
+            elif 2020 <= tahun_masuk <= 2025:
+                skp_minimal = 140
+            else:
+                skp_minimal = 140  # Nilai default untuk tahun > 2025 (jika ada)
+
+            # 3. Validasi SKS minimal
+            if input_sks < 144:
+                st.warning("⚠️ SKS minimal untuk kelulusan adalah 144.")
+                st.stop()
+
+            # 4. Validasi SKP dinamis sesuai tahun masuk
+            if input_skp < skp_minimal:
+                st.error(f"❌ Untuk Angkatan {tahun_masuk}, SKP minimal adalah {skp_minimal}. Skor SKP Anda saat ini: {input_skp}.")
                 st.stop()
 
             # Hitung Lama Studi (Tahun) secara otomatis dari selisih tanggal
